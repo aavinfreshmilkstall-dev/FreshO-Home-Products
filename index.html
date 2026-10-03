@@ -1,144 +1,198 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>FreshO Home Products</title>
 
 <style>
-*{
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
-}
 
 body{
-    font-family:Arial, sans-serif;
-    background:#f5f5f5;
+font-family:Arial,sans-serif;
+background:#f5f5f5;
+margin:0;
 }
 
 header{
-    background:#008000;
-    color:white;
-    text-align:center;
-    padding:40px 20px;
-}
-
-header h1{
-    font-size:40px;
-    margin-bottom:10px;
-}
-
-header p{
-    font-size:20px;
+background:#008000;
+color:white;
+padding:30px;
+text-align:center;
 }
 
 .container{
-    width:95%;
-    max-width:1000px;
-    margin:auto;
-    padding:20px;
+padding:15px;
+max-width:900px;
+margin:auto;
 }
 
 .product{
-    background:white;
-    padding:20px;
-    margin-bottom:20px;
-    border-radius:12px;
-    box-shadow:0 2px 8px rgba(0,0,0,0.15);
-}
-
-.product h2{
-    margin-bottom:10px;
-}
-
-.product p{
-    margin-bottom:10px;
+background:white;
+padding:20px;
+margin-bottom:15px;
+border-radius:10px;
+box-shadow:0 2px 8px rgba(0,0,0,0.15);
 }
 
 .price{
-    color:green;
-    font-size:32px;
-    font-weight:bold;
-    margin-bottom:15px;
+font-size:28px;
+font-weight:bold;
+color:green;
+margin:10px 0;
 }
 
-.button{
-    background:#25D366;
-    color:white;
-    text-decoration:none;
-    padding:12px 20px;
-    border-radius:8px;
-    display:inline-block;
-    font-weight:bold;
+.btn{
+background:#008000;
+color:white;
+border:none;
+padding:12px 20px;
+border-radius:6px;
+font-size:16px;
+cursor:pointer;
 }
 
-.button:hover{
-    background:#1ea952;
+.cart{
+background:white;
+padding:20px;
+border-radius:10px;
+box-shadow:0 2px 8px rgba(0,0,0,0.15);
+margin-top:20px;
 }
 
-footer{
-    background:#222;
-    color:white;
-    text-align:center;
-    padding:20px;
-    margin-top:30px;
+.whatsapp{
+background:#25D366;
+color:white;
+padding:15px 25px;
+border-radius:8px;
+text-decoration:none;
+display:inline-block;
+font-weight:bold;
+margin-top:15px;
 }
+
 </style>
-
 </head>
+
 <body>
 
 <header>
-    <h1>FreshO Home Products</h1>
-    <p>Fresh Milk & Home Products Delivered To Your Doorstep</p>
+<h1>FreshO Home Products</h1>
+<p>Fresh Milk & Home Products Delivered To Your Doorstep</p>
 </header>
 
 <div class="container">
 
-    <div class="product">
-        <h2>🥛 Fresh Cow Milk</h2>
-        <p>1 Litre Pack</p>
-        <div class="price">₹60</div>
+<div class="product">
+<h2>🥛 Fresh Cow Milk</h2>
+<p>1 Litre Pack</p>
+<div class="price">₹60</div>
+<button class="btn" onclick="addToCart('Fresh Cow Milk',60)">
+Add to Cart
+</button>
+</div>
 
-        <a class="button"
-           href="https://wa.me/919894043765?text=I%20want%20to%20order%201%20Litre%20Fresh%20Cow%20Milk"
-           target="_blank">
-           Order on WhatsApp
-        </a>
-    </div>
+<div class="product">
+<h2>🍶 Curd</h2>
+<p>500 gm Pack</p>
+<div class="price">₹40</div>
+<button class="btn" onclick="addToCart('Curd',40)">
+Add to Cart
+</button>
+</div>
 
-    <div class="product">
-        <h2>🍶 Curd</h2>
-        <p>500 gm Pack</p>
-        <div class="price">₹40</div>
+<div class="product">
+<h2>🧈 Ghee</h2>
+<p>500 ml Pack</p>
+<div class="price">₹350</div>
+<button class="btn" onclick="addToCart('Ghee',350)">
+Add to Cart
+</button>
+</div>
 
-        <a class="button"
-           href="https://wa.me/919894043765?text=I%20want%20to%20order%20Curd"
-           target="_blank">
-           Order on WhatsApp
-        </a>
-    </div>
+<div class="cart">
 
-    <div class="product">
-        <h2>🧈 Ghee</h2>
-        <p>500 ml Pack</p>
-        <div class="price">₹350</div>
+<h2>🛒 Cart</h2>
 
-        <a class="button"
-           href="https://wa.me/919894043765?text=I%20want%20to%20order%20Ghee"
-           target="_blank">
-           Order on WhatsApp
-        </a>
-    </div>
+<ul id="cartItems"></ul>
+
+<h3 id="total">Total: ₹0</h3>
+
+#">
+Checkout via WhatsApp
+</a>
 
 </div>
 
-<footer>
-    <h3>📞 Contact: +91 98940 43765</h3>
-    <p>FreshO Home Products</p>
-</footer>
+</div>
+
+<script>
+
+let cart=[];
+let total=0;
+
+function addToCart(product,price){
+
+cart.push({product,price});
+
+total += price;
+
+updateCart();
+
+}
+
+function updateCart(){
+
+let list=document.getElementById("cartItems");
+
+list.innerHTML="";
+
+cart.forEach(item=>{
+
+let li=document.createElement("li");
+
+li.textContent=item.product+" - ₹"+item.price;
+
+list.appendChild(li);
+
+});
+
+document.getElementById("total").innerHTML=
+"Total: ₹"+total;
+
+}
+
+function sendWhatsApp(){
+
+if(cart.length===0){
+
+alert("Cart is empty");
+
+return false;
+
+}
+
+let message="FreshO Home Products Order%0A%0A";
+
+cart.forEach((item,index)=>{
+
+message += (index+1)+". "+item.product+
+" - ₹"+item.price+"%0A";
+
+});
+
+message += "%0ATotal = ₹"+total;
+
+window.open(
+"https://wa.me/919894043765?text="+message,
+"_blank"
+);
+
+return false;
+
+}
+
+</script>
 
 </body>
 </html>
