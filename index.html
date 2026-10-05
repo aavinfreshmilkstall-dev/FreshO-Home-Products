@@ -200,13 +200,17 @@ function show(i){
   for(var k=0;k<s.length;k++){ s[k].classList.toggle("on",k===i); if(d[k]) d[k].classList.toggle("on",k===i); }
 }
 function goTarget(tg){
-  if(!tg) return;
-  var low=tg.toLowerCase();
-  var cats=products.map(function(p){return p.cat});
-  var c=cats.filter(function(x){return x.toLowerCase()===low})[0];
-  if(c){ cat=c; term=""; $("q").value=""; render(); window.scrollTo({top:0,behavior:"smooth"}); return; }
-  var p=products.filter(function(x){return x.name.toLowerCase()===low})[0];
-  if(p){ cat="All"; term=p.name.toLowerCase(); $("q").value=p.name; render(); var el=document.querySelector(".p"); if(el){ el.classList.add("hl"); el.scrollIntoView({behavior:"smooth",block:"center"}); } }
+  tg=String(tg||"").trim(); if(!tg) return;
+  if(/^https?:\/\//i.test(tg)){ window.open(tg,"_blank"); return; }
+  var low=tg.toLowerCase(), c=null;
+  products.forEach(function(p){ if(!c && p.cat.toLowerCase()===low) c=p.cat; });
+  cat="All"; term="";
+  if(c){ cat=c; $("q").value=""; } else { term=low; $("q").value=tg; }
+  render();
+  var els=document.querySelectorAll(".p");
+  if(els.length===1) els[0].classList.add("hl");
+  var t=$("cats").getBoundingClientRect().top+window.pageYOffset-110;
+  window.scrollTo({top:t,behavior:"smooth"});
 }
 
 function render(){
