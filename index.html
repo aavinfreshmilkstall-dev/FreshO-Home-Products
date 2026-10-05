@@ -18,7 +18,7 @@ h1{font-size:1.15rem;margin:0}
 main{padding:0 14px 100px;max-width:1000px;margin:0 auto}
 /* banner */
 #ban{position:relative;margin:12px 0 4px;border-radius:14px;overflow:hidden;display:none}
-.slide{display:none;min-height:130px;padding:20px;color:#fff;background:linear-gradient(120deg,#1a56a8,#2e86de);background-size:cover;background-position:center;cursor:pointer;position:relative}
+.slide{display:none;aspect-ratio:3/1;min-height:130px;max-height:230px;padding:20px;color:#fff;background:linear-gradient(120deg,#1a56a8,#2e86de);background-size:cover;background-position:center;cursor:pointer;position:relative}
 .slide.on{display:flex;flex-direction:column;justify-content:center}
 .slide.img::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.55),rgba(0,0,0,.05))}
 .slide>*{position:relative}
@@ -71,7 +71,7 @@ input.f,textarea{width:100%;padding:11px;margin-bottom:8px;border:1px solid var(
 <body>
 
 <header>
-  <div class="top"><h1 id="shop"></h1><button class="cartbtn" id="open">Cart (<span id="cnt">0</span>)</button></div>
+  <div class="top"><h1 id="shop" style="cursor:pointer"></h1><div style="display:flex;gap:8px"><button class="cartbtn" id="home">🏠 Home</button><button class="cartbtn" id="open">Cart (<span id="cnt">0</span>)</button></div></div>
   <input id="q" type="search" placeholder="Search products…" autocomplete="off">
 </header>
 
@@ -262,6 +262,8 @@ document.addEventListener("click",function(e){
   else if(b.dataset.c){ cat=b.dataset.c; render(); }
 });
 $("q").addEventListener("input",function(){ term=this.value.trim().toLowerCase(); render(); });
+function goHome(){ cat="All"; term=""; $("q").value=""; $("panel").classList.remove("open"); render(); window.scrollTo({top:0,behavior:"smooth"}); }
+$("home").onclick=goHome; $("shop").onclick=goHome;
 function openCart(){ drawCart(); $("panel").classList.add("open"); }
 $("open").onclick=openCart; $("bar").onclick=openCart;
 $("close").onclick=function(){ $("panel").classList.remove("open"); };
