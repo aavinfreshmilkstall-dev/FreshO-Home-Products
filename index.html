@@ -199,13 +199,22 @@ function show(i){
   var s=document.querySelectorAll(".slide"), d=document.querySelectorAll(".dots u");
   for(var k=0;k<s.length;k++){ s[k].classList.toggle("on",k===i); if(d[k]) d[k].classList.toggle("on",k===i); }
 }
+function norm(x){ return String(x||"").toLowerCase().replace(/[^a-z0-9]/g,""); }
 function goTarget(tg){
   tg=String(tg||"").trim(); if(!tg) return;
   if(/^https?:\/\//i.test(tg)){ window.open(tg,"_blank"); return; }
-  var low=tg.toLowerCase(), c=null;
+  var low=tg.toLowerCase(), n=norm(tg), c=null, hit=null;
   products.forEach(function(p){ if(!c && p.cat.toLowerCase()===low) c=p.cat; });
+  if(!c){
+    products.forEach(function(p){
+      if(hit) return;
+      if(n===norm(p.name)||n===norm(p.name+p.size)||n===norm(p.name+" "+p.size)||n===norm(p.file)) hit=p;
+    });
+  }
   cat="All"; term="";
-  if(c){ cat=c; $("q").value=""; } else { term=low; $("q").value=tg; }
+  if(c){ cat=c; $("q").value=""; }
+  else if(hit){ term=hit.name.toLowerCase(); $("q").value=hit.name; }
+  else { term=low; $("q").value=tg; }
   render();
   var els=document.querySelectorAll(".p");
   if(els.length===1) els[0].classList.add("hl");
