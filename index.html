@@ -66,6 +66,9 @@ main{padding:0 14px 100px;max-width:1000px;margin:0 auto}
 input.f,textarea{width:100%;padding:11px;margin-bottom:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
 .wa{width:100%;border:0;background:#1fa855;color:#fff;font-weight:700;font-size:1rem;padding:13px;border-radius:9px}
 .hint{color:var(--red);font-size:.85rem;min-height:1.2em;margin:0 0 6px}
+#toast{display:none;position:fixed;left:12px;right:12px;top:78px;max-width:600px;margin:0 auto;z-index:20;padding:12px 14px;border-radius:10px;font-weight:600;font-size:.92rem;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+#toast.ok{background:var(--green)}
+#toast.bad{background:var(--red)}
 </style>
 </head>
 <body>
@@ -83,6 +86,8 @@ input.f,textarea{width:100%;padding:11px;margin-bottom:8px;border:1px solid var(
 </main>
 
 <button id="bar"><span id="barn"></span><span id="bart"></span></button>
+
+<div id="toast"></div>
 
 <div id="panel">
   <div class="sheet">
@@ -103,9 +108,11 @@ var SHOP_NAME   = "FreshO Home Products";
 var WHATSAPP    = "919894043765";   // country code + number, no + or spaces
 var CSV_URL     = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQTTZAFsFciHj3ZiLtwSKTweWz9tgiqv4CFRAx46MOQxA9YWdHBn8X4Aj8fAiV1VN0GhCr-tte8yP0F/pub?gid=0&single=true&output=csv";
 var BANNERS_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSuv5iJ5cvcvaza7f2BwUd2S2pkcwoF8w4KCtQ8nSzBAsuicb_ep62Ph0asBQcToyNEV_e1QJOCCeFs/pub?gid=0&single=true&output=csv";               // paste the published CSV link of the Banners tab here
-var ORDERS_URL = "https://script.google.com/macros/s/AKfycbyLkORxyXUIpV06hDrwybKvUxL99SDGldkT-Wl-echCT6uhFyKEDLL751-iXJP-SNiagw/exec";
+var ORDERS_URL  = "https://script.google.com/macros/s/AKfycbyLkORxyXUIpV06hDrwybKvUxL99SDGldkT-Wl-echCT6uhFyKEDLL751-iXJP-SNiagw/exec";               // paste the Web app URL of your Orders script here
+/* ================================= */
+
 var $ = function(id){return document.getElementById(id)};
-var products = [], banners = [], cart = {}, cat = "All", term = "", bi = 0, timer = null;
+var orderId = null, products = [], banners = [], cart = {}, cat = "All", term = "", bi = 0, timer = null;
 document.title = SHOP_NAME; $("shop").textContent = SHOP_NAME;
 
 try { cart = JSON.parse(localStorage.getItem("cart") || "{}"); } catch(e){ cart = {}; }
@@ -243,6 +250,7 @@ function render(){
 function find(id){ return products.filter(function(p){return p.id===id})[0]; }
 function change(id,d){
   var p=find(id); if(!p) return;
+  orderId=null;
   var q=(cart[id]?cart[id].q:0)+d;
   if(q<=0) delete cart[id]; else cart[id]={q:q};
   save(); render(); drawBar(); if($("panel").classList.contains("open")) drawCart();
@@ -281,19 +289,60 @@ $("open").onclick=openCart; $("bar").onclick=openCart;
 $("close").onclick=function(){ $("panel").classList.remove("open"); };
 $("panel").onclick=function(e){ if(e.target===$("panel")) $("panel").classList.remove("open"); };
 
+function makeId(){
+  var d=new Date(), z=function(n){return (n<10?"0":"")+n};
+  return "FO"+String(d.getFullYear()).slice(2)+z(d.getMonth()+1)+z(d.getDate())+"-"+(1000+Math.floor(Math.random()*9000));
+}
+try{ var cu=JSON.parse(localStorage.getItem("cust")||"{}"); $("cn").value=cu.n||""; $("cp").value=cu.p||""; $("ca").value=cu.a||""; }catch(e){}
+
+function toast(msg,ok){
+  var t=$("toast"); t.textContent=msg; t.className=(ok===false?"bad":"ok"); t.style.display="block";
+  clearTimeout(toast.h); toast.h=setTimeout(function(){ t.style.display="none"; },15000);
+}
+function saveOrder(payload){
+  if(!ORDERS_URL) return Promise.resolve("off");
+  var hd={"Content-Type":"text/plain;charset=utf-8"}, body=JSON.stringify(payload);
+  return fetch(ORDERS_URL,{method:"POST",headers:hd,body:body,keepalive:true})
+    .then(function(r){ return r.text(); })
+    .then(function(t){ return /^(OK|duplicate)/.test(t)?"saved":"error "+t.slice(0,80); })
+    .catch(function(){
+      /* reading the reply can be blocked even when the order was saved; resend quietly (duplicates are ignored) */
+      try{ fetch(ORDERS_URL,{method:"POST",mode:"no-cors",headers:hd,body:body,keepalive:true}); }catch(e){}
+      return "sent";
+    });
+}
+
 $("send").onclick=function(){
-  var lines=[],t=0;
+  var lines=[],items=[],t=0;
   Object.keys(cart).forEach(function(id){
     var p=find(id); if(!p) return;
     var q=cart[id].q, e=eff(p); t+=e*q;
     lines.push("• "+p.name+(p.size?" ("+p.size+")":"")+" × "+q+" = ₹"+(e*q));
+    items.push({name:p.name,size:p.size,qty:q,price:e});
   });
   var n=$("cn").value.trim(), ph=$("cp").value.trim(), a=$("ca").value.trim();
-  if(!lines.length){ $("hint").textContent="Add at least one product."; return; }
-  if(!n||!ph||!a){ $("hint").textContent="Please enter name, phone and address."; return; }
-  $("hint").textContent="";
-  var msg="*New order – "+SHOP_NAME+"*\n\n"+lines.join("\n")+"\n\n*Total: ₹"+t+"*\n\nName: "+n+"\nPhone: "+ph+"\nAddress: "+a;
+  var h=$("hint");
+  if(!lines.length){ h.textContent="Add at least one product."; return; }
+  if(!n||!ph||!a){ h.textContent="Please enter name, phone and address."; return; }
+  if(ph.replace(/\D/g,"").length<10){ h.textContent="Please enter a valid 10-digit phone number."; return; }
+  h.textContent="";
+  if(!orderId) orderId=makeId();
+  var oid=orderId, payload={id:oid,name:n,phone:ph,address:a,items:items,total:t};
+  try{ localStorage.setItem("cust",JSON.stringify({n:n,p:ph,a:a})); }catch(e){}
+  var msg="*New order – "+SHOP_NAME+"*\nOrder ID: "+oid+"\n\n"+lines.join("\n")+"\n\n*Total: ₹"+t+"*\n\nName: "+n+"\nPhone: "+ph+"\nAddress: "+a;
   window.open("https://wa.me/"+WHATSAPP+"?text="+encodeURIComponent(msg),"_blank");
+
+  /* reset the shop so the customer starts fresh */
+  cart={}; save(); orderId=null;
+  $("panel").classList.remove("open");
+  cat="All"; term=""; $("q").value="";
+  render(); drawBar(); window.scrollTo({top:0});
+  toast("Order "+oid+" placed. Tap Send in WhatsApp to confirm.",true);
+
+  saveOrder(payload).then(function(r){
+    if(r==="saved") toast("Order "+oid+" saved ✓  Tap Send in WhatsApp to confirm.",true);
+    else if(r.indexOf("error")===0) toast("Order not saved in shop sheet ("+r+"). Your WhatsApp message is still ready to send.",false);
+  });
 };
 </script>
 </body>
