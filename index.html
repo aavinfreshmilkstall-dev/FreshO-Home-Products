@@ -72,12 +72,22 @@ input.f,textarea{width:100%;padding:11px;margin-bottom:8px;border:1px solid var(
 #pts{display:none;margin:4px 0 8px;padding:10px;border:1px dashed var(--green);border-radius:10px;font-size:.92rem}
 #pts label{display:flex;align-items:center;gap:8px}
 #pts input{width:auto;margin:0;transform:scale(1.3)}
+.top h1{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px;font-size:1.05rem}
+.hb{display:flex;gap:6px}
+.cartbtn{padding:8px 11px}
+#pm{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:10}
+#pm.open{display:block}
+.pbig{font-size:2rem;font-weight:800;color:var(--green);margin:4px 0}
+.card2{border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0;font-size:.9rem}
+.mini{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:.88rem}
+.pbtn{width:100%;border:0;background:var(--blue);color:#fff;font-weight:700;font-size:1rem;padding:13px;border-radius:9px;margin-top:4px}
+.lnk{background:none;border:0;color:var(--blue);text-decoration:underline;padding:6px 0;font-size:.9rem}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="top"><h1 id="shop" style="cursor:pointer"></h1><div style="display:flex;gap:8px"><button class="cartbtn" id="home">🏠 Home</button><button class="cartbtn" id="open">Cart (<span id="cnt">0</span>)</button></div></div>
+  <div class="top"><h1 id="shop" style="cursor:pointer"></h1><div class="hb"><button class="cartbtn" id="home" aria-label="Home">🏠</button><button class="cartbtn" id="mypts">🎁 Points</button><button class="cartbtn" id="open">Cart (<span id="cnt">0</span>)</button></div></div>
   <input id="q" type="search" placeholder="Search products…" autocomplete="off">
 </header>
 
@@ -91,6 +101,8 @@ input.f,textarea{width:100%;padding:11px;margin-bottom:8px;border:1px solid var(
 <button id="bar"><span id="barn"></span><span id="bart"></span></button>
 
 <div id="toast"></div>
+
+<div id="pm"><div class="sheet"><h2>🎁 My Points <button id="pmclose" aria-label="Close">×</button></h2><div id="pmbody"></div></div></div>
 
 <div id="panel">
   <div class="sheet">
@@ -107,14 +119,12 @@ input.f,textarea{width:100%;padding:11px;margin-bottom:8px;border:1px solid var(
   </div>
 </div>
 
+<script src="config.js"></script>
 <script>
-/* ===== EDIT ONLY THESE LINES ===== */
-var SHOP_NAME   = "FreshO Home Products";
-var WHATSAPP    = "919894043765";   // country code + number, no + or spaces
-var CSV_URL     = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQTTZAFsFciHj3ZiLtwSKTweWz9tgiqv4CFRAx46MOQxA9YWdHBn8X4Aj8fAiV1VN0GhCr-tte8yP0F/pub?gid=0&single=true&output=csv";
-var BANNERS_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSuv5iJ5cvcvaza7f2BwUd2S2pkcwoF8w4KCtQ8nSzBAsuicb_ep62Ph0asBQcToyNEV_e1QJOCCeFs/pub?gid=0&single=true&output=csv";               // paste the published CSV link of the Banners tab here
-var ORDERS_URL  = "https://script.google.com/macros/s/AKfycbyLkORxyXUIpV06hDrwybKvUxL99SDGldkT-Wl-echCT6uhFyKEDLL751-iXJP-SNiagw/exec";               // paste the Web app URL of your Orders script here
-/* ================================= */
+if(typeof SHOP_NAME==="undefined"||typeof ORDERS_URL==="undefined"){
+  document.body.innerHTML='<p style="padding:20px;font-family:sans-serif">config.js is missing or incomplete. Please add it next to index.html.</p>';
+  throw new Error("config.js missing");
+}
 
 var $ = function(id){return document.getElementById(id)};
 var orderId = null, products = [], banners = [], cart = {}, cat = "All", term = "", bi = 0, timer = null;
@@ -301,45 +311,172 @@ function makeId(){
 }
 try{ var cu=JSON.parse(localStorage.getItem("cust")||"{}"); $("cn").value=cu.n||""; $("cp").value=cu.p||""; $("ca").value=cu.a||""; }catch(e){}
 
-/* ---- loyalty points ---- */
-var loy=null, loyPhone="", loyTimer=null;
+/* ---- customer account & points (PIN protected) ---- */
+var acct=null;   /* {phone,pin,balance,pending,pointValue,minRedeem,maxPct,offers,orders,name} */
+var pm={state:"phone",phone:"",msg:""};
 function phone10(){ return $("cp").value.replace(/\D/g,"").slice(-10); }
-function usable(sub){
-  if(!loy) return 0;
-  var pv=loy.pointValue||1, cap=Math.floor(sub*(loy.maxPct||0)/100/pv);
-  var u=Math.min(loy.balance||0,cap);
-  return (u>0 && u>=(loy.minRedeem||0)) ? u : 0;
+
+function api(payload){
+  if(!ORDERS_URL) return Promise.resolve({ok:false,error:"off"});
+  return fetch(ORDERS_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)})
+    .then(function(r){ return r.json(); })
+    .catch(function(){ return {ok:false,error:"network"}; });
 }
-function redeemNow(sub){ return $("usepts").checked ? usable(sub) : 0; }
+function errText(r){
+  var e=r.error;
+  if(e==="wrongpin") return "Wrong PIN."+(r.left>0?" "+r.left+" tries left.":"");
+  if(e==="locked") return "Too many wrong tries. Please try again in "+(r.minutes||15)+" minutes.";
+  if(e==="noorders") return "No order found for this number yet. Place an order first, then create your PIN here.";
+  if(e==="pin") return "PIN must be 4 digits.";
+  if(e==="phone") return "Please enter a valid 10-digit phone number.";
+  if(e==="off") return "Points are not available right now.";
+  return "Could not connect. Please check your internet and try again.";
+}
+function saveSess(){
+  try{ if(acct) sessionStorage.setItem("sess",JSON.stringify({p:acct.phone,k:acct.pin})); else sessionStorage.removeItem("sess"); }catch(e){}
+}
+function setAcct(phone,pin,r){ acct=r; acct.phone=phone; acct.pin=pin; saveSess(); drawPts(); }
+function logout(){
+  acct=null; saveSess(); $("usepts").checked=false; drawPts();
+  pm.state="phone"; pm.msg=""; drawPM();
+}
+function refreshAcct(){
+  if(!acct) return Promise.resolve();
+  var p=acct.phone,k=acct.pin;
+  return api({action:"login",phone:p,pin:k}).then(function(r){
+    if(r.ok) setAcct(p,k,r);
+    else if(r.error==="wrongpin"||r.error==="locked"||r.error==="nopin"){ acct=null; saveSess(); drawPts(); }
+  });
+}
+
+/* points box inside the cart */
+function usable(sub){
+  if(!acct) return 0;
+  var pv=acct.pointValue||1, cap=Math.floor(sub*(acct.maxPct||0)/100/pv);
+  var u=Math.min(acct.balance||0,cap);
+  return (u>0 && u>=(acct.minRedeem||0)) ? u : 0;
+}
+function redeemNow(sub){ return ($("usepts").checked && acct && phone10()===acct.phone) ? usable(sub) : 0; }
 function drawPts(){
-  var sub=totals().t, box=$("pts"), fin=$("fin"), cb=$("usepts");
-  if(!loy || !(loy.balance>0) || !sub){ box.style.display="none"; fin.style.display="none"; cb.checked=false; return; }
-  var pv=loy.pointValue||1, u=usable(sub);
+  var sub=totals().t, box=$("pts"), fin=$("fin"), cb=$("usepts"), tx=$("ptstxt");
+  fin.style.display="none";
+  if(!sub){ box.style.display="none"; cb.checked=false; return; }
   box.style.display="block";
-  if(u>0){
-    cb.style.display="";
-    $("ptstxt").textContent="You have "+loy.balance+" points. Use "+u+" points (−₹"+(u*pv)+")";
-  } else {
+  if(!acct){
     cb.style.display="none"; cb.checked=false;
-    $("ptstxt").textContent="You have "+loy.balance+" points"+(loy.balance<(loy.minRedeem||0)?" (minimum "+loy.minRedeem+" needed to use)":"");
+    tx.innerHTML='🎁 Have points? <button class="lnk" id="plogin" type="button">Log in to use them</button>';
+    return;
+  }
+  if(phone10() && phone10()!==acct.phone){
+    cb.style.display="none"; cb.checked=false;
+    tx.textContent="Your points belong to "+acct.phone.slice(0,2)+"******"+acct.phone.slice(-2)+". Enter that number to use them.";
+    return;
+  }
+  var pv=acct.pointValue||1, u=usable(sub);
+  if(u>0){ cb.style.display=""; tx.textContent="You have "+acct.balance+" points. Use "+u+" points (−₹"+(u*pv)+")"; }
+  else {
+    cb.style.display="none"; cb.checked=false;
+    tx.textContent="You have "+acct.balance+" points"+(acct.balance<(acct.minRedeem||0)?" (minimum "+acct.minRedeem+" needed to use)":"");
   }
   var r=redeemNow(sub);
   fin.style.display=r?"flex":"none";
   $("finv").textContent="₹"+(sub-r*pv);
 }
-function phoneChanged(){
-  var ph=phone10();
-  if(ph.length<10){ loy=null; loyPhone=""; drawPts(); return; }
-  if(ph===loyPhone || !ORDERS_URL) return;
-  loyPhone=ph;
-  fetch(ORDERS_URL+"?action=points&phone="+ph)
-    .then(function(r){ return r.json(); })
-    .then(function(d){ if(phone10()===ph){ loy=d; drawPts(); } })
-    .catch(function(){ loyPhone=""; });
-}
-$("cp").addEventListener("input",function(){ clearTimeout(loyTimer); loyTimer=setTimeout(phoneChanged,400); });
+$("cp").addEventListener("input",drawPts);
 $("usepts").addEventListener("change",drawPts);
 
+/* My Points screen */
+function drawPM(){
+  var b=$("pmbody"), h="";
+  var soft=/^(Checking|Please wait)/.test(pm.msg);
+  var m=pm.msg?'<p class="hint"'+(soft?' style="color:var(--mute)"':'')+'>'+esc(pm.msg)+'</p>':"";
+  if(acct){
+    var pv=acct.pointValue||1;
+    h='<div class="card2">'+(acct.name?'Hello '+esc(acct.name)+'<br>':'')+
+      '<div class="pbig">'+acct.balance+' points</div>= ₹'+(acct.balance*pv)+' discount'+
+      (acct.pending>0?'<br><small>+ '+acct.pending+' more points will be added after delivery</small>':'')+'</div>'+
+      '<div class="card2"><b>How to use</b><br>Add products to your cart and tick “Use points”. Minimum '+acct.minRedeem+' points. Points can pay up to '+acct.maxPct+'% of a bill.</div>';
+    if(acct.offers&&acct.offers.length){
+      h+='<div class="card2"><b>Points offers running now</b>'+acct.offers.map(function(o){
+        return '<div class="mini"><span>'+(o.cat==="all"?"All products":esc(o.cat))+'</span><span>'+o.pct+'% points · till '+esc(o.end)+'</span></div>';
+      }).join("")+'</div>';
+    }
+    if(acct.orders&&acct.orders.length){
+      h+='<div class="card2"><b>Recent orders</b>'+acct.orders.map(function(o){
+        return '<div class="mini"><span>'+esc(o.date)+' · '+esc(o.status)+'</span><span>₹'+o.total+(o.earned?' · +'+o.earned:'')+(o.used?' · −'+o.used:'')+'</span></div>';
+      }).join("")+'</div>';
+    }
+    h+='<button class="lnk" data-act="logout" type="button">Log out</button>';
+  } else if(pm.state==="phone"){
+    h='<p>Enter your mobile number to see your points.</p><input class="f" id="pmp" placeholder="Mobile number" inputmode="tel" value="'+esc(pm.phone)+'">'+m+'<button class="pbtn" data-act="next">Continue</button>';
+  } else if(pm.state==="enter"){
+    h='<p>Number: <b>'+esc(pm.phone)+'</b> <button class="lnk" data-act="back" type="button">change</button></p>'+
+      '<input class="f" id="pm1" type="password" inputmode="numeric" maxlength="4" placeholder="Your 4-digit PIN" autocomplete="off">'+m+
+      '<button class="pbtn" data-act="login">Show my points</button><button class="lnk" data-act="forgot" type="button">Forgot PIN?</button>';
+  } else {
+    h='<p>Number: <b>'+esc(pm.phone)+'</b> <button class="lnk" data-act="back" type="button">change</button></p>'+
+      '<p>Create a 4-digit PIN. You will use it to see and spend your points.</p>'+
+      '<input class="f" id="pm1" type="password" inputmode="numeric" maxlength="4" placeholder="Choose a 4-digit PIN" autocomplete="off">'+
+      '<input class="f" id="pm2" type="password" inputmode="numeric" maxlength="4" placeholder="Type the PIN again" autocomplete="off">'+m+
+      '<button class="pbtn" data-act="create">Create PIN</button>';
+  }
+  b.innerHTML=h;
+}
+$("pmbody").addEventListener("click",function(e){
+  var b=e.target.closest("button"); if(!b||!b.dataset.act) return;
+  var a=b.dataset.act;
+  if(a==="logout") return logout();
+  if(a==="back"){ pm.state="phone"; pm.msg=""; return drawPM(); }
+  if(a==="forgot"){ window.open("https://wa.me/"+WHATSAPP+"?text="+encodeURIComponent("Please reset my points PIN. My number: "+pm.phone),"_blank"); return; }
+  if(a==="next"){
+    var raw=$("pmp").value, p=raw.replace(/\D/g,"").slice(-10);
+    pm.phone=raw;
+    if(p.length<10){ pm.msg=errText({error:"phone"}); return drawPM(); }
+    pm.phone=p; pm.msg="Checking…"; drawPM();
+    api({action:"status",phone:p}).then(function(r){
+      if(!r.ok){ pm.msg=errText(r); pm.state="phone"; return drawPM(); }
+      pm.msg=""; pm.state=r.hasPin?"enter":"create"; drawPM();
+    });
+    return;
+  }
+  if(a==="login"||a==="create"){
+    var k=($("pm1").value||"").replace(/\D/g,"");
+    if(k.length!==4){ pm.msg=errText({error:"pin"}); return drawPM(); }
+    if(a==="create" && k!==($("pm2").value||"").replace(/\D/g,"")){ pm.msg="The two PINs do not match."; return drawPM(); }
+    pm.msg="Please wait…"; drawPM();
+    api({action:"login",phone:pm.phone,pin:k,create:(a==="create")}).then(function(r){
+      if(r.ok){ pm.msg=""; setAcct(pm.phone,k,r); $("cp").value=pm.phone; drawPts(); drawPM(); }
+      else { pm.msg=errText(r); drawPM(); }
+    });
+  }
+});
+$("mypts").onclick=function(){
+  pm.msg="";
+  if(!acct){
+    var cu={}; try{ cu=JSON.parse(localStorage.getItem("cust")||"{}"); }catch(e){}
+    pm.state="phone"; pm.phone=cu.p||pm.phone||"";
+  }
+  $("pm").classList.add("open"); drawPM();
+  if(acct) refreshAcct().then(drawPM);
+};
+$("pmclose").onclick=function(){ $("pm").classList.remove("open"); };
+$("pm").onclick=function(e){ if(e.target===$("pm")) $("pm").classList.remove("open"); };
+document.addEventListener("click",function(e){
+  if(e.target.id==="plogin"){ $("panel").classList.remove("open"); $("mypts").click(); }
+});
+
+/* keep a logged-in customer logged in for this browser session */
+try{
+  var sv=JSON.parse(sessionStorage.getItem("sess")||"null");
+  if(sv&&sv.p&&sv.k&&ORDERS_URL){
+    api({action:"login",phone:sv.p,pin:sv.k}).then(function(r){
+      if(r.ok) setAcct(sv.p,sv.k,r);
+      else if(r.error==="wrongpin"||r.error==="locked"||r.error==="nopin"){ try{sessionStorage.removeItem("sess");}catch(e){} }
+    });
+  }
+}catch(e){}
+
+/* ---- sending the order ---- */
 function toast(msg,ok){
   var t=$("toast"); t.textContent=msg; t.className=(ok===false?"bad":"ok"); t.style.display="block";
   clearTimeout(toast.h); toast.h=setTimeout(function(){ t.style.display="none"; },15000);
@@ -349,7 +486,10 @@ function saveOrder(payload){
   var hd={"Content-Type":"text/plain;charset=utf-8"}, body=JSON.stringify(payload);
   return fetch(ORDERS_URL,{method:"POST",headers:hd,body:body,keepalive:true})
     .then(function(r){ return r.text(); })
-    .then(function(t){ return /^(OK|duplicate)/.test(t)?"saved":"error "+t.slice(0,80); })
+    .then(function(t){
+      if(/points not applied/.test(t)) return "nopts";
+      return /^(OK|duplicate)/.test(t)?"saved":"error "+t.slice(0,80);
+    })
     .catch(function(){
       /* reading the reply can be blocked even when the order was saved; resend quietly (duplicates are ignored) */
       try{ fetch(ORDERS_URL,{method:"POST",mode:"no-cors",headers:hd,body:body,keepalive:true}); }catch(e){}
@@ -372,8 +512,9 @@ $("send").onclick=function(){
   if(ph.replace(/\D/g,"").length<10){ h.textContent="Please enter a valid 10-digit phone number."; return; }
   h.textContent="";
   if(!orderId) orderId=makeId();
-  var oid=orderId, redeem=redeemNow(t), pv=(loy&&loy.pointValue)||1, pay=t-redeem*pv;
+  var oid=orderId, redeem=redeemNow(t), pv=(acct&&acct.pointValue)||1, pay=t-redeem*pv;
   var payload={id:oid,name:n,phone:ph,address:a,items:items,total:t,redeem:redeem};
+  if(redeem>0) payload.pin=acct.pin;
   try{ localStorage.setItem("cust",JSON.stringify({n:n,p:ph,a:a})); }catch(e){}
   var totalTxt=redeem>0
     ? "*Total: ₹"+t+"*\nPoints used: "+redeem+" (−₹"+(redeem*pv)+")\n*To pay: ₹"+pay+"*"
@@ -382,8 +523,7 @@ $("send").onclick=function(){
   window.open("https://wa.me/"+WHATSAPP+"?text="+encodeURIComponent(msg),"_blank");
 
   /* reset the shop so the customer starts fresh */
-  cart={}; save(); orderId=null;
-  loy=null; loyPhone=""; $("usepts").checked=false;
+  cart={}; save(); orderId=null; $("usepts").checked=false;
   $("panel").classList.remove("open");
   cat="All"; term=""; $("q").value="";
   render(); drawBar(); drawPts(); window.scrollTo({top:0});
@@ -391,12 +531,11 @@ $("send").onclick=function(){
 
   saveOrder(payload).then(function(r){
     if(r==="saved") toast("Order "+oid+" saved ✓  Tap Send in WhatsApp to confirm.",true);
+    else if(r==="nopts") toast("Order saved, but your points were NOT applied (PIN problem). Please tell the shop.",false);
     else if(r.indexOf("error")===0) toast("Order not saved in shop sheet ("+r+"). Your WhatsApp message is still ready to send.",false);
-    phoneChanged();
+    refreshAcct();
   });
 };
-
-phoneChanged();
 </script>
 </body>
 </html>
