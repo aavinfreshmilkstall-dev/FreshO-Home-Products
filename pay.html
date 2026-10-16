@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pay – FreshO</title>
+<script src="config.js"></script>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--ink:#14263d;--mute:#64748b;--line:#dde4ee;--blue:#1a56a8;--green:#1e8449}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1a2a;--card:#172538;--ink:#eaf0f8;--mute:#9db0c7;--line:#27384f;--blue:#6aa3ee;--green:#4cc47f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+header{background:var(--blue);color:#fff;padding:14px;font-weight:700;font-size:1.1rem}
+main{max-width:480px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;text-align:center}
+.amt{font-size:2.6rem;font-weight:800;margin:6px 0}
+.mute{color:var(--mute);font-size:.9rem}
+.btn{display:block;width:100%;border:0;border-radius:10px;padding:15px;font-size:1.05rem;font-weight:700;color:#fff;background:var(--green);text-decoration:none;margin-top:14px}
+.btn2{background:none;color:var(--blue);border:1px solid var(--line);margin-top:10px;font-weight:600}
+.box{margin-top:16px;padding:12px;border:1px dashed var(--line);border-radius:10px;text-align:left;font-size:.92rem}
+.box b{word-break:break-all}
+.err{color:#c0392b;font-weight:600}
+</style>
+</head>
+<body>
+<header id="shop">Pay for your order</header>
+<main>
+  <div class="card" id="card"></div>
+  <div class="box" id="manual" style="display:none">
+    <b>Button did not open your UPI app?</b><br>
+    1. Copy the UPI ID below.<br>
+    2. Open GPay, PhonePe or Paytm → Pay to UPI ID.<br>
+    3. Paste the ID and enter the amount shown above.<br>
+    <p>UPI ID: <b id="vpa"></b></p>
+    <button class="btn btn2" id="copy" type="button">Copy UPI ID</button>
+  </div>
+  <p class="mute" style="text-align:center">After paying, please keep the payment screenshot. The shop confirms your payment when it receives the money.</p>
+</main>
+<script>
+var VPA  = (typeof UPI_ID   !== "undefined") ? UPI_ID   : "9894043765-1@okbizaxis";
+var NAME = (typeof UPI_NAME !== "undefined") ? UPI_NAME : "Nesamani Somasundaram";
+var SHOP = (typeof SHOP_NAME!== "undefined") ? SHOP_NAME: "FreshO Home Products";
+var q = new URLSearchParams(location.search);
+var am = parseFloat(q.get("am")), tn = (q.get("tn")||"").replace(/[^A-Za-z0-9 \-_.]/g,"").slice(0,40);
+document.title = "Pay – " + SHOP; document.getElementById("shop").textContent = SHOP;
+var card = document.getElementById("card");
+if(!(am>0) || am>100000){
+  card.innerHTML = '<p class="err">This payment link is not valid.</p><p class="mute">Please ask the shop to send it again.</p>';
+}else{
+  var amt = am.toFixed(2);
+  var upi = "upi://pay?pa="+encodeURIComponent(VPA)+"&pn="+encodeURIComponent(NAME)+"&am="+amt+"&cu=INR"+(tn?"&tn="+encodeURIComponent("Order "+tn):"");
+  card.innerHTML = '<div class="mute">Amount to pay</div><div class="amt">₹'+(am%1?amt:am)+'</div>'+
+    (tn?'<div class="mute">Order '+tn+'</div>':'')+
+    '<a class="btn" id="go" href="'+upi+'">Pay with UPI app</a>'+
+    '<div class="mute" style="margin-top:10px">Opens GPay, PhonePe, Paytm or any UPI app</div>';
+  document.getElementById("manual").style.display = "block";
+  document.getElementById("vpa").textContent = VPA;
+  document.getElementById("copy").onclick = function(){
+    var b=this;
+    function done(){ b.textContent="Copied ✓"; }
+    if(navigator.clipboard) navigator.clipboard.writeText(VPA).then(done,function(){ prompt("Copy this UPI ID",VPA); });
+    else prompt("Copy this UPI ID",VPA);
+  };
+}
+</script>
+</body>
+</html>
