@@ -19,6 +19,8 @@ main{max-width:480px;margin:0 auto;padding:16px}
 .btn2{background:none;color:var(--blue);border:1px solid var(--line);margin-top:10px;font-weight:600}
 .box{margin-top:16px;padding:12px;border:1px dashed var(--line);border-radius:10px;text-align:left;font-size:.92rem}
 .box b{word-break:break-all}
+.apps{display:flex;gap:8px;margin-top:12px}
+.apps a{flex:1;text-align:center;padding:11px 4px;border:1px solid var(--line);border-radius:10px;color:var(--blue);font-weight:600;font-size:.9rem;text-decoration:none}
 .err{color:#c0392b;font-weight:600}
 </style>
 </head>
@@ -49,10 +51,14 @@ if(!(am>0) || am>100000){
 }else{
   var amt = am.toFixed(2);
   var upi = "upi://pay?pa="+encodeURIComponent(VPA)+"&pn="+encodeURIComponent(NAME)+"&am="+amt+"&cu=INR"+(tn?"&tn="+encodeURIComponent("Order "+tn):"");
+  var qs = "pa="+encodeURIComponent(VPA)+"&pn="+encodeURIComponent(NAME)+"&am="+amt+"&cu=INR"+(tn?"&tn="+encodeURIComponent("Order "+tn):"");
+  function app(pkg){ return "intent://pay?"+qs+"#Intent;scheme=upi;package="+pkg+";end"; }
   card.innerHTML = '<div class="mute">Amount to pay</div><div class="amt">₹'+(am%1?amt:am)+'</div>'+
     (tn?'<div class="mute">Order '+tn+'</div>':'')+
     '<a class="btn" id="go" href="'+upi+'">Pay with UPI app</a>'+
-    '<div class="mute" style="margin-top:10px">Opens GPay, PhonePe, Paytm or any UPI app</div>';
+    '<div class="mute" style="margin-top:10px">Not opening? Try one app directly:</div>'+
+    '<div class="apps"><a href="'+app("com.google.android.apps.nbu.paisa.user")+'">Google Pay</a><a href="'+app("com.phonepe.app")+'">PhonePe</a><a href="'+app("net.one97.paytm")+'">Paytm</a></div>'+
+    '<div class="mute" style="margin-top:12px">Open this page on the <b>phone</b> that has your UPI app. Tablets and computers usually cannot open it.</div>';
   document.getElementById("manual").style.display = "block";
   document.getElementById("vpa").textContent = VPA;
   document.getElementById("copy").onclick = function(){
